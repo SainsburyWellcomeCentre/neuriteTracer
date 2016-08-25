@@ -587,7 +587,7 @@ classdef neuriteTracer<masivPlugin
             masivDebugTimingInfo(2, 'Entering UIdeleteMarker',toc,'s')
 
             idx = findMarkerNearestToCursor(obj);
-            thisT = obj.selectedTreeIdxbj;
+            thisT = obj.selectedTreeIdx;
 
             if isempty(idx)            
                 fprintf('No points in current z-depth.\n')
