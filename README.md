@@ -15,3 +15,5 @@ externalPluginsDirs: {~/.masiv_plugins}
 The run:
 
 ``masiv_plugin.update('~/.masiv_plugins/neuriteTracer')``
+
+Awesome!
