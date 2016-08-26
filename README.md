@@ -12,8 +12,6 @@ Ensure you ``external_plugins`` preference in ``masivPrefs.yml`` contains a vali
 externalPluginsDirs: {~/.masiv_plugins}
 ``
 
-The run:
+Then run:
 
 ``masiv_plugin.update('~/.masiv_plugins/neuriteTracer')``
-
-Awesome!
