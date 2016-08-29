@@ -15,3 +15,9 @@ externalPluginsDirs: {~/.masiv_plugins}
 Then run:
 
 ``masiv_plugin.update('~/.masiv_plugins/neuriteTracer')``
+
+
+## FAQ
+Q: After installing I get an error indicating that a neuriteTracer preference can not be found. 
+<br >
+A: Close the tracer GUI. Remove the neuriteTracer section from the preferences YML. Restart the tracer plugin. 

@@ -78,6 +78,7 @@ classdef neuriteTracer<masivPlugin
         %auto-save elements
         hAutoSaveEvery
         hAutoSaveEnableCheckBox
+        tempDirLocation
 
 
         fontName
@@ -363,10 +364,10 @@ classdef neuriteTracer<masivPlugin
             obj.toggleNodeModifers('off')
 
             %Create a temporary directory for placing auto-save data
-            tempNTDir = fullfile(tempdir,'neuriteTracerTemp');
-            if ~exist(tempNTDir,'dir')
-                fprintf('Making temporary directory for auto-save data: %s\n',tempNTDir)
-                mkdir(tempNTDir);
+            obj.tempDirLocation = fullfile(tempdir,'neuriteTracerTemp');
+            if ~exist(obj.tempDirLocation,'dir')
+                fprintf('Making temporary directory for auto-save data: %s\n',obj.tempDirLocation)
+                mkdir(obj.tempDirLocation);
             end
 
 
@@ -594,6 +595,19 @@ classdef neuriteTracer<masivPlugin
             masivDebugTimingInfo(2, 'NeuriteTracer.UIaddMarker: Count updated',toc,'s')
             %% Set change flag
             obj.changeFlag=1;
+
+            %Auto-save every N points
+            nNodes=length(obj.neuriteTrees{thisT}.Node);
+            if obj.hAutoSaveEnableCheckBox.Value==1 && mod(nNodes,masivSetting('neuriteTracer.autosave.everypoints'))==0
+                fname = sprintf('%s_#%d_%s', obj.MaSIV.Meta.stackName, nNodes, datestr(now,'YYMMDD_hhmmss'));
+                fname = fullfile(obj.tempDirLocation,fname); %the name of the temporary file
+
+                fprintf('Auto-saving to %s\n', fname)
+                neurite_markers=obj.neuriteTrees;
+                save(fname,'neurite_markers')
+            end    
+
+
         end
 
         function idx = findMarkerNearestToCursor(obj)
