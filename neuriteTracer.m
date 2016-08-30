@@ -75,6 +75,11 @@ classdef neuriteTracer<masivPlugin
         %consider replacing the handles with a structure of handles (TODO)
         neuriteTraceHandles
 
+        %auto-save elements
+        hAutoSaveEvery
+        hAutoSaveEnableCheckBox
+        tempDirLocation
+
 
         fontName
         fontSize
@@ -135,6 +140,8 @@ classdef neuriteTracer<masivPlugin
                 masivSetting('neuriteTracer.minimumSize', 1) %sets when the highlights are drawn. Likely we will eventually ditch this
                 masivSetting('neuriteTracer.maximumDistanceVoxelsForDeletion', 500)    
                 masivSetting('neuriteTracer.nodeType',{'normal','premature','fading','bright','bouton'})
+                masivSetting('neuriteTracer.autosave.enable', 1);
+                masivSetting('neuriteTracer.autosave.everypoints', 50);
             end
             masivSetting('neuriteTracer.importExportDefault', masivSetting('defaultDirectory'))
 
@@ -267,7 +274,7 @@ classdef neuriteTracer<masivPlugin
             hSettingPanel=uipanel(...
                 'Parent', obj.hFig, ...
                 'Units', 'normalized', ...
-                'Position', [0.64 0.17 0.34 0.43], ...
+                'Position', [0.64 0.17 0.34 0.25], ...
                 'BackgroundColor', masivSetting('viewer.mainBkgdColor'), ...
                 'ForegroundColor', masivSetting('viewer.textMainColor'), ...
                 'Title', 'Display Settings', ...
@@ -275,11 +282,36 @@ classdef neuriteTracer<masivPlugin
                 'FontSize', obj.fontSize);            
 
             setUpSettingBox('XY Size', 'neuriteTracer.markerDiameter.xy', 0.8, hSettingPanel, obj)
-            setUpSettingBox('Z Size', 'neuriteTracer.markerDiameter.z', 0.7, hSettingPanel, obj)
-            setUpSettingBox('Min. Size', 'neuriteTracer.minimumSize', 0.6, hSettingPanel, obj)
-            setUpSettingBox('Delete Prox.', 'neuriteTracer.maximumDistanceVoxelsForDeletion', 0.48, hSettingPanel, obj)
+            setUpSettingBox('Z Size', 'neuriteTracer.markerDiameter.z', 0.6, hSettingPanel, obj)
+            setUpSettingBox('Min. Size', 'neuriteTracer.minimumSize', 0.4, hSettingPanel, obj)
+            setUpSettingBox('Delete Prox.', 'neuriteTracer.maximumDistanceVoxelsForDeletion', 0.2, hSettingPanel, obj)
 
 
+            %% Auto-save
+            hAutoSavePanel=uipanel(...
+                'Parent', obj.hFig, ...
+                'Units', 'normalized', ...
+                'Position', [0.64 0.43 0.34 0.17], ...
+                'BackgroundColor', masivSetting('viewer.mainBkgdColor'), ...
+                'ForegroundColor', masivSetting('viewer.textMainColor'), ...
+                'Title', 'Autosave', ...
+                'FontName', obj.fontName, ...
+                'FontSize', obj.fontSize);
+
+            setUpSettingBox('Every', 'neuriteTracer.autosave.everypoints', 0.14, hAutoSavePanel, obj)
+
+            obj.hAutoSaveEnableCheckBox = uicontrol(...
+                'Parent', hAutoSavePanel, ...
+                'Units', 'normalized', ...
+                'Style','checkbox',...
+                'String','Enable',...
+                'Value', (masivSetting('neuriteTracer.autosave.enable')),...
+                'Position', [0.25 0.43 0.54 0.70], ...
+                'FontName', obj.fontName,...
+                'FontSize', obj.fontSize-1,...
+                'Callback', {@valueChangeCallback,'neuriteTracer.autosave.enable'}, ...
+                'BackgroundColor', masivSetting('viewer.mainBkgdColor'), ...
+                'ForegroundColor', masivSetting('viewer.textMainColor'));
 
 
             %% Import / Export data buttons           
@@ -295,6 +327,7 @@ classdef neuriteTracer<masivPlugin
                 'BackgroundColor', masivSetting('viewer.mainBkgdColor'), ...
                 'ForegroundColor', masivSetting('viewer.textMainColor'), ...
                 'Callback', {@importData, obj});
+
             uicontrol(...
                 'Parent', obj.hFig, ...
                 'Style', 'pushbutton', ...
@@ -330,6 +363,15 @@ classdef neuriteTracer<masivPlugin
                 'hRootNode',[]);
 
             obj.toggleNodeModifers('off')
+
+            %Create a temporary directory for placing auto-save data
+            obj.tempDirLocation = fullfile(tempdir,'neuriteTracerTemp');
+            if ~exist(obj.tempDirLocation,'dir')
+                fprintf('Making temporary directory for auto-save data: %s\n',obj.tempDirLocation)
+                mkdir(obj.tempDirLocation);
+            end
+
+
         end % Constructor
 
         %% Set up markers
@@ -554,6 +596,19 @@ classdef neuriteTracer<masivPlugin
             masivDebugTimingInfo(2, 'NeuriteTracer.UIaddMarker: Count updated',toc,'s')
             %% Set change flag
             obj.changeFlag=1;
+
+            %Auto-save every N points
+            nNodes=length(obj.neuriteTrees{thisT}.Node);
+            if obj.hAutoSaveEnableCheckBox.Value==1 && mod(nNodes,masivSetting('neuriteTracer.autosave.everypoints'))==0
+                fname = sprintf('%s_#%d_%s', obj.MaSIV.Meta.stackName, nNodes, datestr(now,'YYMMDD_hhmmss'));
+                fname = fullfile(obj.tempDirLocation,fname); %the name of the temporary file
+
+                fprintf('Auto-saving to %s\n', fname)
+                neurite_markers=obj.neuriteTrees;
+                save(fname,'neurite_markers')
+            end    
+
+
         end
 
         function idx = findMarkerNearestToCursor(obj)
@@ -1805,8 +1860,8 @@ function changeMarkerTypeColor(~, ~, obj, parentObj)
 end
 
 
-%% Settings change
-function setUpSettingBox(displayName, settingName, yPosition, parentPanel, parentObject)
+%% Settings change (including writing modified settings to YML)
+function varargout=setUpSettingBox(displayName, settingName, yPosition, parentPanel, parentObject)
     fn=masivSetting('font.name');
     fs=masivSetting('font.size');
 
@@ -1814,7 +1869,7 @@ function setUpSettingBox(displayName, settingName, yPosition, parentPanel, paren
         'Style', 'edit', ...
         'Parent', parentPanel, ...
         'Units', 'normalized', ...
-        'Position', [0.66 yPosition+0.05 0.32 0.09], ...
+        'Position', [0.66 yPosition 0.32 0.19], ...
         'FontName', fn, ...
         'FontSize', fs, ...
         'BackgroundColor', masivSetting('viewer.mainBkgdColor'), ...
@@ -1828,7 +1883,7 @@ function setUpSettingBox(displayName, settingName, yPosition, parentPanel, paren
         'Style', 'text', ...
         'Parent', parentPanel, ...
         'Units', 'normalized', ...
-        'Position', [0.02 yPosition+0.035 0.61 0.07], ...
+        'Position', [0.02 yPosition-0.0075 0.61 0.19], ...
         'HorizontalAlignment', 'right', ...
         'FontName', fn, ...
         'FontSize', fs-1, ...
@@ -1836,9 +1891,14 @@ function setUpSettingBox(displayName, settingName, yPosition, parentPanel, paren
         'ForegroundColor', masivSetting('viewer.textMainColor'), ...
         'String', displayName);
 
+    if nargout>0
+        varargout{1}=hEdit;
+    end
+
 end
 
 function checkAndUpdateNewNumericSetting(obj,ev, parentObject)
+    %write new setting to disk
     numEquiv=(str2num(ev.Source.String)); %#ok<ST2NM>
     if ~isempty(numEquiv)
         masivSetting(obj.UserData, numEquiv)
@@ -1847,3 +1907,11 @@ function checkAndUpdateNewNumericSetting(obj,ev, parentObject)
     end
     parentObject.drawAllTrees();
 end
+
+
+function valueChangeCallback(src,~,setting)
+    %write value field to masiv setting YML
+    %e.g. see the callback definition for obj.hAutoSaveEnableCheckBox
+    masivSetting(setting,src.Value)
+end
+
