@@ -298,7 +298,7 @@ classdef neuriteTracer<masivPlugin
                 'FontName', obj.fontName, ...
                 'FontSize', obj.fontSize);
 
-            setUpSettingBox('Every', 'neuriteTracer.autosave.everypoints', 0.2, hAutoSavePanel, obj)
+            setUpSettingBox('Every', 'neuriteTracer.autosave.everypoints', 0.14, hAutoSavePanel, obj)
 
             obj.hAutoSaveEnableCheckBox = uicontrol(...
                 'Parent', hAutoSavePanel, ...
@@ -306,9 +306,10 @@ classdef neuriteTracer<masivPlugin
                 'Style','checkbox',...
                 'String','Enable',...
                 'Value', (masivSetting('neuriteTracer.autosave.enable')),...
-                'Position', [0.24 0.43 0.54 0.70], ...
+                'Position', [0.25 0.43 0.54 0.70], ...
                 'FontName', obj.fontName,...
                 'FontSize', obj.fontSize-1,...
+                'Callback', {@valueChangeCallback,'neuriteTracer.autosave.enable'}, ...
                 'BackgroundColor', masivSetting('viewer.mainBkgdColor'), ...
                 'ForegroundColor', masivSetting('viewer.textMainColor'));
 
@@ -1859,7 +1860,7 @@ function changeMarkerTypeColor(~, ~, obj, parentObj)
 end
 
 
-%% Settings change
+%% Settings change (including writing modified settings to YML)
 function varargout=setUpSettingBox(displayName, settingName, yPosition, parentPanel, parentObject)
     fn=masivSetting('font.name');
     fs=masivSetting('font.size');
@@ -1906,3 +1907,11 @@ function checkAndUpdateNewNumericSetting(obj,ev, parentObject)
     end
     parentObject.drawAllTrees();
 end
+
+
+function valueChangeCallback(src,~,setting)
+    %write value field to masiv setting YML
+    %e.g. see the callback definition for obj.hAutoSaveEnableCheckBox
+    masivSetting(setting,src.Value)
+end
+
