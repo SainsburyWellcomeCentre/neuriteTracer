@@ -28,8 +28,13 @@ classdef neuriteTracer<masivPlugin
     % h      - searches backwards (towards soma) to the nearest branch point and centres on this
     %
     %
+    % When in delete mode, pressing ctrl+shift when clicking will delete all points
+    % downstream of that nearest to the cursor. 
+    %
+    %
     % REQUIRES:
     % https://github.com/raacampbell/matlab-tree.git
+    %
     %
     % Rob Campbell - Basel 2015
 
@@ -41,6 +46,8 @@ classdef neuriteTracer<masivPlugin
         cursorListenerOutsideAxes
         cursorListenerClick
         keyPressListener
+        keyReleaseListener
+
 
         %Tree selector handles
         hMarkerButtonGroup
@@ -67,10 +74,10 @@ classdef neuriteTracer<masivPlugin
 
         maxNeuriteTrees %maximum number of trees that can be drawn
         markerTypes
-        neuriteTrees %Stores the neurite traces in a tree structure
-        currentTree %The current neuron
-        lastNode    %index of the last node in tree. Can be re-set to add branches, etc. vector same length as neuriteTrees
-        currentLeaf %When cycling between leaves, this is the node id of the currently highlighted leaf (see leafCycle)
+        neuriteTrees  % Stores the neurite traces in a tree structure
+        currentTree   % The current neuron
+        extensionNode % Index of the node from which we will exend the tree. Vector same length as neuriteTrees
+        currentLeaf   % When cycling between leaves, this is the node id of the currently highlighted leaf (see leafCycle)
 
         %consider replacing the handles with a structure of handles (TODO)
         neuriteTraceHandles
@@ -89,7 +96,7 @@ classdef neuriteTracer<masivPlugin
         pannedListener
         gvClosingListener
 
-        changeFlag=0
+        changeFlag=0 %set to 1 if the tree is modified
 
     end
 
@@ -170,7 +177,7 @@ classdef neuriteTracer<masivPlugin
             %Set up empty tree structure and associated variables
             obj.maxNeuriteTrees=6; 
             obj.neuriteTrees = cell(1,obj.maxNeuriteTrees);
-            obj.lastNode=zeros(1,obj.maxNeuriteTrees);
+            obj.extensionNode=zeros(1,obj.maxNeuriteTrees);
             obj.markerTypes=defaultMarkerTypes(obj.maxNeuriteTrees); %Set this to the number of neurons
             updateMarkerTypeUISelections(obj);
 
@@ -349,6 +356,8 @@ classdef neuriteTracer<masivPlugin
             obj.zoomedListener=event.listener(obj.MaSIV, 'Zoomed', @obj.drawAllTrees);
             obj.pannedListener=event.listener(obj.MaSIV, 'Panned', @obj.drawAllTrees);
             obj.keyPressListener=event.listener(obj.MaSIV, 'KeyPress', @obj.parentKeyPress);
+
+            %TODO: add key release
             obj.gvClosingListener=event.listener(obj.MaSIV, 'ViewerClosing', @obj.parentClosing);
 
 
@@ -370,6 +379,7 @@ classdef neuriteTracer<masivPlugin
                 fprintf('Making temporary directory for auto-save data: %s\n',obj.tempDirLocation)
                 mkdir(obj.tempDirLocation);
             end
+            fprintf('neuriteTracer will autosave in directory %s\n', obj.tempDirLocation)
 
 
         end % Constructor
@@ -572,17 +582,17 @@ classdef neuriteTracer<masivPlugin
 
             masivDebugTimingInfo(2, 'NeuriteTracer.UIaddMarker: New marker created',toc,'s')
 
-            thisT = obj.selectedTreeIdx;
+            treeIdx = obj.selectedTreeIdx;
 
-            if isempty(obj.neuriteTrees{thisT})
+            if isempty(obj.neuriteTrees{treeIdx})
                 newMarker.branchType='soma';
 
-                obj.neuriteTrees{thisT} = tree(newMarker); %Add first point to tree root
-                obj.lastNode(thisT)=1;
+                obj.neuriteTrees{treeIdx} = tree(newMarker); %Add first point to tree root
+                obj.extensionNode(treeIdx)=1;
             else
                 %Append a point 
-                [obj.neuriteTrees{thisT},obj.lastNode(obj.selectedTreeIdx)] = ...
-                    obj.neuriteTrees{thisT}.addnode(obj.lastNode(obj.selectedTreeIdx),newMarker); 
+                [obj.neuriteTrees{treeIdx},obj.extensionNode(obj.selectedTreeIdx)] = ...
+                    obj.neuriteTrees{treeIdx}.addnode(obj.extensionNode(obj.selectedTreeIdx),newMarker); 
             end
 
 
@@ -598,7 +608,7 @@ classdef neuriteTracer<masivPlugin
             obj.changeFlag=1;
 
             %Auto-save every N points
-            nNodes=length(obj.neuriteTrees{thisT}.Node);
+            nNodes=length(obj.neuriteTrees{treeIdx}.Node);
             if obj.hAutoSaveEnableCheckBox.Value==1 && mod(nNodes,masivSetting('neuriteTracer.autosave.everypoints'))==0
                 fname = sprintf('%s_#%d_%s', obj.MaSIV.Meta.stackName, nNodes, datestr(now,'YYMMDD_hhmmss'));
                 fname = fullfile(obj.tempDirLocation,fname); %the name of the temporary file
@@ -635,33 +645,55 @@ classdef neuriteTracer<masivPlugin
             else
                 idx=[];
             end
-
         end
 
         function UIdeleteMarker(obj)
+
+            %Delete the marker nearest the mouse cursor if this is legal
             masivDebugTimingInfo(2, 'Entering UIdeleteMarker',toc,'s')
 
-            idx = findMarkerNearestToCursor(obj);
-            thisT = obj.selectedTreeIdx;
+            treeIdx = obj.selectedTreeIdx; %The currently selected tree
 
-            if isempty(idx)            
-                fprintf('No points in current z-depth.\n')
+            % Find the marker nearest the cursor and assign this as the extensionNode.
+            % Although we will delete this node, multiple deletions sometimes result
+            % in the extension node vanishing, so we avoid this bug by explicitly setting
+            % it here. 
+            nearestNodeIdx = findMarkerNearestToCursor(obj);
+
+            if isempty(nearestNodeIdx)            
+                fprintf(' ** No points in current z-depth. **\n')
                 masivDebugTimingInfo(2, 'Leaving UIdeleteMarker',toc,'s')
                 return
             end
-            if length(obj.neuriteTrees{obj.currentTree}.getchildren(idx))>1
-                fprintf('Can Not Delete Branch Points!\n')
+            if length(obj.neuriteTrees{obj.currentTree}.getchildren(nearestNodeIdx))>1
+                fprintf(' ** Can Not Delete Branch Points! **\n')
                 masivDebugTimingInfo(2, 'Leaving UIdeleteMarker',toc,'s')
                 return
             end
 
-            obj.lastNode(thisT) = obj.neuriteTrees{thisT}.Parent(obj.lastNode(thisT)); %TODO: is this right?
-            obj.neuriteTrees{thisT} = obj.neuriteTrees{thisT}.removenode(idx);
+            obj.extensionNode(treeIdx) = nearestNodeIdx;
 
-            obj.drawAllTrees;
+            % Assign the last node to be the parent of the current last node
+            if nearestNodeIdx>1
+                obj.extensionNode(treeIdx) = obj.neuriteTrees{treeIdx}.Parent(obj.extensionNode(treeIdx));
+            else
+                fprintf(' ** Root node deletion not implemented yet **\n')
+                masivDebugTimingInfo(2, 'Leaving UIdeleteMarker',toc,'s')
+                return
+            end
+            
+            % Perform a node deletion or tree prune
+            if ismember('shift',get(obj.MaSIV.hFig,'currentModifier')) && ...
+                ismember('control',get(obj.MaSIV.hFig,'currentModifier'))
+                % Perform a prune
+                obj.neuriteTrees{treeIdx} = obj.neuriteTrees{treeIdx}.chop(nearestNodeIdx);
+            else
+                % Remove the selected node and replace the tree 
+                obj.neuriteTrees{treeIdx} = obj.neuriteTrees{treeIdx}.removenode(nearestNodeIdx);
+            end
 
-            %% Update count
-            obj.decrementMarkerCount(obj.currentType);
+            obj.drawAllTrees; %redraw
+            obj.decrementMarkerCount(obj.currentType); % Update count
 
             %% Set change flag
             obj.changeFlag=1;
@@ -1041,13 +1073,13 @@ classdef neuriteTracer<masivPlugin
                 %If the node append highlight is on the current branch of the user's selected tree, we attempt to plot it
                 if obj.currentTree ~= obj.selectedTreeIdx, continue, end %nothing more to do unless this is the user's current tree
 
-                if ~isempty(find(visibleNodesInPathIdx==obj.lastNode(obj.selectedTreeIdx)))
+                if ~isempty(find(visibleNodesInPathIdx==obj.extensionNode(obj.selectedTreeIdx)))
                     masivDebugTimingInfo(2, sprintf('Plotting node highlighter on path %d',ii), toc, 's')
 
-                    highlightNode = obj.neuriteTrees{obj.currentTree}.Node{obj.lastNode(obj.selectedTreeIdx)}; %The highlighted node
+                    highlightNode = obj.neuriteTrees{obj.currentTree}.Node{obj.extensionNode(obj.selectedTreeIdx)}; %The highlighted node
 
                     %Get the size of the node 
-                    lastNodeInd = find(visibleNodesInPathIdx==obj.lastNode(obj.selectedTreeIdx));
+                    lastNodeInd = find(visibleNodesInPathIdx==obj.extensionNode(obj.selectedTreeIdx));
 
                     %Calculate marker size. 
                     %TODO: use the markerNodeIdx vector to neaten the size calculation 
@@ -1061,10 +1093,10 @@ classdef neuriteTracer<masivPlugin
                     obj.neuriteTraceHandles(obj.selectedTreeIdx).hHighlightedMarker = ...
                         plot(hMainImgAx, highlightNode.xVoxel, highlightNode.yVoxel,...
                         'or', 'markersize', mSize, 'LineWidth', 2,...
-                        'Tag','LastNode','HitTest', 'off'); 
+                        'Tag','extensionNode','HitTest', 'off'); 
 
                     % If possible, enable the meta-data boxes so the user can edit the properties of the selected tree node
-                    if isa(rootNode,'neuriteTracerNode') & obj.lastNode(obj.selectedTreeIdx)>1
+                    if isa(rootNode,'neuriteTracerNode') & obj.extensionNode(obj.selectedTreeIdx)>1
                         obj.toggleNodeModifers('on')
                     else
                         obj.toggleNodeModifers('off')
@@ -1087,18 +1119,18 @@ classdef neuriteTracer<masivPlugin
                 return
             else
                 %Now we set the last node to be the highlighted node. Allows for branching.
-                obj.lastNode(obj.selectedTreeIdx)=idx;
+                obj.extensionNode(obj.selectedTreeIdx)=idx;
             end
 
 
-            lastNodeObj = findobj(obj.MaSIV.hMainImgAx, 'Tag', 'LastNode') ;
+            lastNodeObj = findobj(obj.MaSIV.hMainImgAx, 'Tag', 'extensionNode') ;
             verbose=1;
             if ~isempty(lastNodeObj) %The tree has not been changed and the marker only moved
                 thisMarker = obj.neuriteTrees{obj.selectedTreeIdx}.Node{idx};
                 set(obj.neuriteTraceHandles(obj.selectedTreeIdx).hHighlightedMarker,...
                  'XData', thisMarker.xVoxel,...
                  'YData', thisMarker.yVoxel);
-                if verbose, masivDebugTimingInfo(2, sprintf('Moved lastnode marker to node %d',idx),toc,'s'), end
+                if verbose, masivDebugTimingInfo(2, sprintf('Moved extensionNode marker to node %d',idx),toc,'s'), end
 
                 % If possible, enable the meta-data boxes so the user can edit the properties of the selected tree node
                 if isa(obj.neuriteTrees{obj.selectedTreeIdx}.Node{1},'neuriteTracerNode') & idx>1
@@ -1122,11 +1154,11 @@ classdef neuriteTracer<masivPlugin
             %Updates (refreshes) the display on the GUI following certain user actions. 
             %e.g. updates the node type popup menu when the user highlights a new node
 
-            highlightedNode=obj.neuriteTrees{obj.selectedTreeIdx}.Node{obj.lastNode(obj.selectedTreeIdx)};
+            highlightedNode=obj.neuriteTrees{obj.selectedTreeIdx}.Node{obj.extensionNode(obj.selectedTreeIdx)};
 
             
             %This is the type of the highlighhted node
-            if isa(highlightedNode,'neuriteTracerNode') & obj.lastNode(obj.selectedTreeIdx)>1 %if not the root node
+            if isa(highlightedNode,'neuriteTracerNode') & obj.extensionNode(obj.selectedTreeIdx)>1 %if not the root node
                 nType=highlightedNode.data.nodeType;
                 ind=strmatch(nType,obj.hNodeType.String,'Exact');
                 if isempty(ind)
@@ -1158,7 +1190,7 @@ classdef neuriteTracer<masivPlugin
                 delete(findobj(obj.MaSIV.hMainImgAx, 'Tag', 'NeuriteTracerHighlights'))
             end
             if  any(~isempty([obj.neuriteTraceHandles.hHighlightedMarker]))
-                 delete(findobj(obj.MaSIV.hMainImgAx, 'Tag', 'LastNode'))
+                 delete(findobj(obj.MaSIV.hMainImgAx, 'Tag', 'extensionNode'))
             end
         end
 
@@ -1209,7 +1241,7 @@ classdef neuriteTracer<masivPlugin
         function goToCurrentRootNode(obj,~,~)
             %Go to the layer that contains the root of the currently selected tree and centre it
             %see also: obj.keyPress
-            obj.lastNode(obj.selectedTreeIdx)=1;
+            obj.extensionNode(obj.selectedTreeIdx)=1;
             obj.goToNode(1)
             fprintf('Gone to root of tree %d\n',obj.userSelectedTreeIdx)
         end
@@ -1251,7 +1283,7 @@ classdef neuriteTracer<masivPlugin
                 end
             end
 
-            obj.lastNode(obj.selectedTreeIdx)=obj.currentLeaf; %highlight the leaf
+            obj.extensionNode(obj.selectedTreeIdx)=obj.currentLeaf; %highlight the leaf
             pos=obj.goToNode(obj.currentLeaf); %go to the leaf
 
             fprintf('Gone to leaf %d/%d at x=%d, y=%d, z=%d\n',f,length(leaves),pos)
@@ -1288,21 +1320,21 @@ classdef neuriteTracer<masivPlugin
             % n key goes to parent node
             % see also: obj.keyPress
             selectedIDX = obj.userSelectedTreeIdx;
-            selectedNode = obj.lastNode(obj.selectedTreeIdx);
+            selectedNode = obj.extensionNode(obj.selectedTreeIdx);
             parentNode = obj.neuriteTrees{selectedIDX}.Parent(selectedNode);
             if parentNode<1
                 return
             end
             %move the highlight
-            obj.lastNode(obj.selectedTreeIdx)=parentNode; %highlight the leaf
+            obj.extensionNode(obj.selectedTreeIdx)=parentNode; %highlight the leaf
             pos=obj.goToNode(parentNode); %go to the leaf
 
         end
 
         function goToChildNode(obj) 
             % m key goes to first child node
-            % see also: obj.keyPressselectedIDX = obj.userSelectedTreeIdx;
-            selectedNode = obj.lastNode(obj.selectedTreeIdx);
+            % see also: obj.keyPress
+            selectedNode = obj.extensionNode(obj.selectedTreeIdx);
             childNode = obj.neuriteTrees{obj.selectedTreeIdx}.getchildren(selectedNode);
             if isempty(childNode)
                 return
@@ -1310,7 +1342,7 @@ classdef neuriteTracer<masivPlugin
                 childNode=childNode(1);
             end
             %move the highlight
-            obj.lastNode(obj.selectedTreeIdx)=childNode; %highlight the leaf
+            obj.extensionNode(obj.selectedTreeIdx)=childNode; %highlight the leaf
             pos=obj.goToNode(childNode); %go to the leaf
         end
 
@@ -1322,7 +1354,7 @@ classdef neuriteTracer<masivPlugin
                 onlyReturnIndex=0;
             end
             selectedIDX = obj.userSelectedTreeIdx;
-            selectedNode = obj.lastNode(obj.selectedTreeIdx);
+            selectedNode = obj.extensionNode(obj.selectedTreeIdx);
             if selectedNode==1
                 return
             end
@@ -1344,7 +1376,7 @@ classdef neuriteTracer<masivPlugin
 
             if ~onlyReturnIndex
                 %move the highlight
-                obj.lastNode(obj.selectedTreeIdx)=nextBranch; %highlight the node
+                obj.extensionNode(obj.selectedTreeIdx)=nextBranch; %highlight the node
                 pos=obj.goToNode(nextBranch); %go to the node
             end
             if nargout>0
@@ -1357,7 +1389,7 @@ classdef neuriteTracer<masivPlugin
             % j key searches forward along the tree to the nearest branch point and centres on this
             % see also: obj.keyPressselectedIDX = obj.userSelectedTreeIdx; 
             selectedIDX = obj.userSelectedTreeIdx;
-            selectedNode = obj.lastNode(obj.selectedTreeIdx);
+            selectedNode = obj.extensionNode(obj.selectedTreeIdx);
 
             origNextBranch = selectedNode;
             nextBranch=[];
@@ -1392,7 +1424,7 @@ classdef neuriteTracer<masivPlugin
             end
 
             %move the highlight
-            obj.lastNode(obj.selectedTreeIdx)=nextBranch; %highlight the node
+            obj.extensionNode(obj.selectedTreeIdx)=nextBranch; %highlight the node
             pos=obj.goToNode(nextBranch); %go to the node
            
         end
@@ -1408,11 +1440,11 @@ classdef neuriteTracer<masivPlugin
 
             num=[];
             for ii=1:length(obj.neuriteTrees)
-                thisTree=obj.neuriteTrees{ii};
-                if isempty(thisTree), continue, end
-                thisType = thisTree.Node{1}.type;
+                treeIdx=obj.neuriteTrees{ii};
+                if isempty(treeIdx), continue, end
+                thisType = treeIdx.Node{1}.type;
                 if thisType == markerTypeToUpdate
-                    num = length(thisTree.Node);           
+                    num = length(treeIdx.Node);           
                 end
 
             end
@@ -1598,8 +1630,8 @@ function importData(~, ~, obj)
     obj.neuriteTrees=m; %Store loaded data in the object
     for ii=1:length(obj.neuriteTrees)
         if ~isempty(obj.neuriteTrees{ii}) %if neurite tree is present
-            obj.lastNode(ii)=length(obj.neuriteTrees{ii}.Node); %set highlight (append) node to last point in tree
-            obj.lastNode(ii)=1;
+            obj.extensionNode(ii)=length(obj.neuriteTrees{ii}.Node); %set highlight (append) node to last point in tree
+            obj.extensionNode(ii)=1;
 
             obj.hTreeCheckBox(ii).Value=1; %enable check box 
             obj.updateMarkerCount(obj.neuriteTrees{ii}.Node{1}.type)  %Set marker count
@@ -1642,7 +1674,7 @@ function nodeTypeCallback(~,~,obj)
     %
     % The checkbox is disabled if the tree is not composed of neuriteTracerNodes 
     % or if the selected node is the root node
-    selectedNode = obj.lastNode(obj.selectedTreeIdx); 
+    selectedNode = obj.extensionNode(obj.selectedTreeIdx); 
 
     nType = obj.hNodeType.String{get(obj.hNodeType,'Value')}; 
     obj.neuriteTrees{obj.selectedTreeIdx}.Node{selectedNode}.data.nodeType = nType;
@@ -1660,7 +1692,7 @@ function neuriteTypeCallback(~,~,obj)
     end
 
     tic
-    selectedNode = obj.lastNode(obj.selectedTreeIdx);
+    selectedNode = obj.extensionNode(obj.selectedTreeIdx);
     leavesOnThisBranch = obj.neuriteTrees{obj.selectedTreeIdx}.findleaves(selectedNode);
 
     for ii=1:length(leavesOnThisBranch)
@@ -1729,19 +1761,17 @@ function keyPress(~, eventdata, obj)
     key=eventdata.Key;
     key=strrep(key, 'numpad', '');
 
-    ctrlMod=ismember('control', eventdata.Modifier);
-
     switch key
         case {'1' '2' '3' '4' '5' '6' '7' '8' '9'}
             obj.hTreeSelection(str2double(key)).Value=1;
         case {'0'}
             obj.hTreeSelection(10).Value=1;
         case 'a' %add mode
-            if ctrlMod
+            if ismember('control',get(obj.MaSIV.hFig,'currentModifier'))
                 obj.hModeAdd.Value=1;
             end
         case 'd' %delete mode
-            if ctrlMod
+            if ismember('control',get(obj.MaSIV.hFig,'currentModifier'))
                 obj.hModeDelete.Value=1;
             end
         case 'r' %go to root node of currently selected tree
