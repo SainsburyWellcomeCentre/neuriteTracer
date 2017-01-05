@@ -4,26 +4,31 @@ This is a plugin that provides manual neurite tracing capabilities to [MaSIV](ht
 
 
 ### How to install?
-Ensure your ``external_plugins`` preference in ``masivPrefs.yml`` contains a valid directory into which you will install plugins. This directory should be *outside* of the MaSIV install directory. For example, your preferences file might contain:
+It is best to use the MaSIV plugin installer since in future MaSIV will check plugins installed this way for updates.
+You an also use Git and manually search for updates if you wish. 
+In both cases you will first need to ensure that MaSIV has an external plugins directory defined:
 
-```
-externalPluginsDirs: {~/.masiv_plugins}
-```
+* The ``external_plugins`` preference in ``masivPrefs.yml`` should contain a valid directory into which you will install plugins. 
+* This directory should be *outside* of the MaSIV install directory. e.g. in your home directory. 
+* Edit the preferences file and create the directory if necessary. 
 
-Which means external plugins will be housed in in a hidden directory (hence the `.`) called `.masiv_plugins` that is located in your home directory (hence the `~`). Create the external plugins directory if does not already exist. 
-
-To install the neurite tracer plugin run:
+If using the plugin installer, in MATLAB run:
 
 ```
 masiv_plugin.install('https://github.com/raacampbell/neuriteTracer')
 ```
 
 Note that it's the web url (*not the Git URL*) you are entering. 
-Follow the instructions. 
+Follow the on-screen instructions. 
 Now you can update the plugin separately from MaSIV. 
 To update the plugin, you feed its directory into the update function:
 
-``masiv_plugin.update('~/.masiv_plugins/neuriteTracer')``
+```
+masiv_plugin.update('~/.masiv_plugins/neuriteTracer')
+```
+
+If you are using Git, simply clone neuriteTracer into your external plugins directory as normal. 
+
 
 
 ### Usage instructions
@@ -49,6 +54,17 @@ You may also use the mouse wheel to change layers and ctrl+wheel will zoom.
 * Switch to `delete` mode in the GUI (or press `ctrl-d`).
 * Clicking will remove the node nearest to the mouse cursor.
 * To remove all nodes downstream of particular node, press `shift` + `ctrl` and click.
+* The tree is auto-saved before this operation is performed and the location of the auto-save printed to screen. 
+
+
+### Changing the parent of a node
+You can change the parent of a node in the event of a mistake during tacing
+* Switch to `add` mode in the GUI (or press `ctrl-a`).
+* Select the node you wish to reassign by holding down `alt` and moving the red marker to that node.
+* Now `shift` + `ctrl` + click on the node you want to be the new parent of this selected node.
+* The operation is automatically aborted if performing it will destroy the integrity of the tree 
+   (e.g. you can't turn a node's child into its parent).
+* The tree is auto-saved before the parent change this operation is performed and the location of the auto-save printed to screen. 
 
 
 ### Keyboard shortcuts:
