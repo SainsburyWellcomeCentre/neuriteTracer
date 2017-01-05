@@ -602,8 +602,7 @@ classdef neuriteTracer<masivPlugin
                 obj.neuriteTrees{treeIdx} = obj.neuriteTrees{treeIdx}.changeparent(obj.extensionNode(treeIdx),nearestNodeIdx);
 
                 %Find the nearest node and locate the extension node to it
-                obj.clearMarkers
-                obj.drawAllTrees
+                obj.clearMarkers ; obj.drawAllTrees %TODO: despite this the extensionNode marker sometimes isn't deleted and we get two of them until a screen refresh happens WHY??
                 if ~isempty(nearestNodeIdx)
                     obj.highlightMarker %find marker nearest the cursor and highlight it
                 end
