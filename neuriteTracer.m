@@ -645,6 +645,7 @@ classdef neuriteTracer<masivPlugin
             else
                 idx=[];
             end
+
         end
 
         function UIdeleteMarker(obj)
@@ -685,10 +686,17 @@ classdef neuriteTracer<masivPlugin
             % Perform a node deletion or tree prune
             if ismember('shift',get(obj.MaSIV.hFig,'currentModifier')) && ...
                 ismember('control',get(obj.MaSIV.hFig,'currentModifier'))
-                % Perform a prune
+                % Backup tree before pruning
+                fname = sprintf('%s_TREE_PRUNE_at_node_#%d_%s', obj.MaSIV.Meta.stackName, length(obj.neuriteTrees{treeIdx}.Node), datestr(now,'YYMMDD_hhmmss'));
+                fname = fullfile(obj.tempDirLocation,fname); %the name of the temporary file
+                fprintf('\n*** Auto-saving before prune operation to %s\n\n', fname)
+                neurite_markers=obj.neuriteTrees;
+                save(fname,'neurite_markers')
+
+                % Perform a prune: selected node and all children deleted
                 obj.neuriteTrees{treeIdx} = obj.neuriteTrees{treeIdx}.chop(nearestNodeIdx);
             else
-                % Remove the selected node and replace the tree 
+                % Remove the selected node
                 obj.neuriteTrees{treeIdx} = obj.neuriteTrees{treeIdx}.removenode(nearestNodeIdx);
             end
 
