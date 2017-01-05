@@ -572,38 +572,67 @@ classdef neuriteTracer<masivPlugin
 
         %------------------------------------------------------------------------------------------
         %Marker addition and deletion
-        function UIaddMarker(obj) %Adds a marker to the currently selected tree
+        function UIaddMarker(obj) 
+            %Adds a marker to the currently selected tree and performs a node parent reassignment if shift & ctrl are pressed
             masivDebugTimingInfo(2, 'NeuriteTracer.UIaddMarker: Beginning',toc,'s')
-            newMarker=neuriteTracerNode(obj.currentType, ...
-                obj.deCorrectedCursorX, ...
-                obj.deCorrectedCursorY, ...
-                obj.cursorZVoxels,...
-                struct('nodeType','normal')); %
-
-            masivDebugTimingInfo(2, 'NeuriteTracer.UIaddMarker: New marker created',toc,'s')
 
             treeIdx = obj.selectedTreeIdx;
 
-            if isempty(obj.neuriteTrees{treeIdx})
-                newMarker.branchType='soma';
 
-                obj.neuriteTrees{treeIdx} = tree(newMarker); %Add first point to tree root
-                obj.extensionNode(treeIdx)=1;
+
+            if ismember('shift',get(obj.MaSIV.hFig,'currentModifier')) && ...
+                ismember('control',get(obj.MaSIV.hFig,'currentModifier'))
+                % Perform a parent switch
+
+                nearestNodeIdx = findMarkerNearestToCursor(obj);
+                if isempty(nearestNodeIdx)            
+                    masivDebugTimingInfo(2, 'Leaving UIaddMarker',toc,'s')
+                    return
+                end
+
+                 % Backup tree before changing parent
+                fname = sprintf('%s_PARENT_CHANGE_at_node_#%d_%s', obj.MaSIV.Meta.stackName, ...
+                    length(obj.neuriteTrees{treeIdx}.Node), datestr(now,'YYMMDD_hhmmss'));
+                fname = fullfile(obj.tempDirLocation,fname); %the name of the temporary file
+                fprintf('\n*** Auto-saving before re-parent operation to %s\n\n', fname)
+                neurite_markers=obj.neuriteTrees;
+                save(fname,'neurite_markers')
+
+                %Perform the re-parent operation (tree.changeparent will not return a tree with a different number of nodes to the original)
+                obj.neuriteTrees{treeIdx} = obj.neuriteTrees{treeIdx}.changeparent(obj.extensionNode(treeIdx),nearestNodeIdx);
+
+                %Find the nearest node and locate the extension node to it
+                obj.clearMarkers
+                obj.drawAllTrees
+                if ~isempty(nearestNodeIdx)
+                    obj.highlightMarker %find marker nearest the cursor and highlight it
+                end
+    
             else
-                %Append a point 
-                [obj.neuriteTrees{treeIdx},obj.extensionNode(obj.selectedTreeIdx)] = ...
-                    obj.neuriteTrees{treeIdx}.addnode(obj.extensionNode(obj.selectedTreeIdx),newMarker); 
+                %Add a point to the tree
+                newMarker=neuriteTracerNode(obj.currentType, ...
+                    obj.deCorrectedCursorX, ...
+                    obj.deCorrectedCursorY, ...
+                    obj.cursorZVoxels,...
+                    struct('nodeType','normal'));
+                masivDebugTimingInfo(2, 'NeuriteTracer.UIaddMarker: New marker created',toc,'s')
+
+                if isempty(obj.neuriteTrees{treeIdx})
+                    newMarker.branchType='soma';
+                    obj.neuriteTrees{treeIdx} = tree(newMarker); %Add first point to tree root
+                    obj.extensionNode(treeIdx)=1;
+                else
+                    %Append a point 
+                    [obj.neuriteTrees{treeIdx},obj.extensionNode(obj.selectedTreeIdx)] = ...
+                        obj.neuriteTrees{treeIdx}.addnode(obj.extensionNode(obj.selectedTreeIdx),newMarker); 
+                end
+                obj.incrementMarkerCount(obj.currentType); %% Update count
+                masivDebugTimingInfo(2, 'NeuriteTracer.UIaddMarker: Marker added and count updated',toc,'s')
             end
 
-
-            masivDebugTimingInfo(2, 'NeuriteTracer.UIaddMarker: Marker added to collection',toc,'s')
-            drawAllTrees(obj)
+            obj.drawAllTrees
             masivDebugTimingInfo(2, 'NeuriteTracer.UIaddMarker: Markers Drawn',toc,'s')
 
-            %% Update count
-            obj.incrementMarkerCount(obj.currentType); 
-
-            masivDebugTimingInfo(2, 'NeuriteTracer.UIaddMarker: Count updated',toc,'s')
             %% Set change flag
             obj.changeFlag=1;
 
@@ -645,6 +674,10 @@ classdef neuriteTracer<masivPlugin
             else
                 idx=[];
             end
+            
+            if isempty(idx)            
+                fprintf(' ** findMarkerNearestToCursor finds no points in current z-depth. **\n')                
+            end
 
         end
 
@@ -662,7 +695,6 @@ classdef neuriteTracer<masivPlugin
             nearestNodeIdx = findMarkerNearestToCursor(obj);
 
             if isempty(nearestNodeIdx)            
-                fprintf(' ** No points in current z-depth. **\n')
                 masivDebugTimingInfo(2, 'Leaving UIdeleteMarker',toc,'s')
                 return
             end
@@ -687,7 +719,8 @@ classdef neuriteTracer<masivPlugin
             if ismember('shift',get(obj.MaSIV.hFig,'currentModifier')) && ...
                 ismember('control',get(obj.MaSIV.hFig,'currentModifier'))
                 % Backup tree before pruning
-                fname = sprintf('%s_TREE_PRUNE_at_node_#%d_%s', obj.MaSIV.Meta.stackName, length(obj.neuriteTrees{treeIdx}.Node), datestr(now,'YYMMDD_hhmmss'));
+                fname = sprintf('%s_TREE_PRUNE_at_node_#%d_%s', obj.MaSIV.Meta.stackName, ...
+                    length(obj.neuriteTrees{treeIdx}.Node), datestr(now,'YYMMDD_hhmmss'));
                 fname = fullfile(obj.tempDirLocation,fname); %the name of the temporary file
                 fprintf('\n*** Auto-saving before prune operation to %s\n\n', fname)
                 neurite_markers=obj.neuriteTrees;
