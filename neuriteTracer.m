@@ -114,13 +114,13 @@ classdef neuriteTracer<masivPlugin
     methods
         %% Constructor
         function obj=neuriteTracer(caller, ~)   
-
+            obj=obj@masivPlugin(caller); %call constructor of masivPlugin
             if ~exist('tree','file')
                 agree=errordlg(sprintf('The matlab-tree package is not installed.\nInstall from:\nhttps://github.com/raacampbell/matlab-tree'));
                 fprintf('\n\n\tThe matlab-tree package is not installed. \n\tPlease install from: https://github.com/raacampbell/matlab-tree\n\n\n')
                 return
             end
-            obj=obj@masivPlugin(caller); %call constructor of masivPlugin
+
             obj.MaSIV=caller.UserData;
 
 
