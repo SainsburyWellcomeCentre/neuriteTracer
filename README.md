@@ -12,10 +12,10 @@ In both cases you will first need to ensure that MaSIV has an external plugins d
 * This directory should be *outside* of the MaSIV install directory. e.g. in your home directory. 
 * Edit the preferences file and create the directory if necessary. 
 
-If using the plugin installer, in MATLAB run:
+If using the plugin manager, in MATLAB run:
 
 ```
-masiv_plugin.install('https://github.com/raacampbell/neuriteTracer')
+masiv.pluginManager.install('https://github.com/raacampbell/neuriteTracer')
 ```
 
 Note that it's the web url (*not the Git URL*) you are entering. 
@@ -24,7 +24,7 @@ Now you can update the plugin separately from MaSIV.
 To update the plugin, you feed its directory into the update function:
 
 ```
-masiv_plugin.update('~/.masiv_plugins/neuriteTracer')
+masiv.pluginManager.update('~/.masiv_plugins/neuriteTracer')
 ```
 
 If you are using Git, simply clone neuriteTracer into your external plugins directory as normal. 
