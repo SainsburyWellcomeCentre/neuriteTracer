@@ -65,6 +65,7 @@ You can change the parent of a node in the event of a mistake during tacing
 * The operation is automatically aborted if performing it will destroy the integrity of the tree 
    (e.g. you can't turn a node's child into its parent).
 * The tree is auto-saved before the parent change this operation is performed and the location of the auto-save printed to screen. 
+* Currently this procedure only works for nodes within the same trace (the same tree)
 
 
 ### Keyboard shortcuts:
