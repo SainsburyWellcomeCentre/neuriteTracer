@@ -2,6 +2,7 @@
 # MaSIV neuriteTracer
 This is a plugin that provides manual neurite tracing capabilities to [MaSIV](https://github.com/alexanderbrown/masiv), the MATLAB-based large image viewer.  
 
+<img src="https://github.com/raacampbell/neuriteTracer/wiki/images/exampleTrace.jpg" />
 
 ### How to install?
 It is best to use the MaSIV plugin installer since in future MaSIV will check plugins installed this way for updates.
