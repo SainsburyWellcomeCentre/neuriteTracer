@@ -146,7 +146,7 @@ classdef neuriteTracer<masivPlugin
                 masivSetting('neuriteTracer.markerDiameter.z', 3);
                 masivSetting('neuriteTracer.minimumSize', 1) %sets when the highlights are drawn. Likely we will eventually ditch this
                 masivSetting('neuriteTracer.maximumDistanceVoxelsForDeletion', 500)    
-                masivSetting('neuriteTracer.nodeType',{'normal','premature','fading','bright','bouton'})
+                masivSetting('neuriteTracer.nodeType',{'normal','premature','fading','bright','callosal','bouton'})
                 masivSetting('neuriteTracer.autosave.enable', 1);
                 masivSetting('neuriteTracer.autosave.everypoints', 50);
             end
@@ -1197,7 +1197,7 @@ classdef neuriteTracer<masivPlugin
             highlightedNode=obj.neuriteTrees{obj.selectedTreeIdx}.Node{obj.extensionNode(obj.selectedTreeIdx)};
 
             
-            %This is the type of the highlighhted node
+            %This is the type of the highlighted node
             if isa(highlightedNode,'neuriteTracerNode') & obj.extensionNode(obj.selectedTreeIdx)>1 %if not the root node
                 nType=highlightedNode.data.nodeType;
                 ind=strmatch(nType,obj.hNodeType.String,'Exact');
