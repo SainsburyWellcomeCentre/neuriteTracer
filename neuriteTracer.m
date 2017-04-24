@@ -102,7 +102,7 @@ classdef neuriteTracer<masivPlugin
 
     properties(Dependent, SetAccess=protected) %access with get methods
         currentType
-        selectedTreeIdx 
+        selectedTreeIdx %The index of the selected tree
         cursorZVoxels
         cursorZUnits
 
@@ -1199,10 +1199,16 @@ classdef neuriteTracer<masivPlugin
             
             %This is the type of the highlighted node
             if isa(highlightedNode,'neuriteTracerNode') & obj.extensionNode(obj.selectedTreeIdx)>1 %if not the root node
+
+                if  ~isstruct(highlightedNode.data)
+                    masivDebugTimingInfo(2, 'NOTE: updateNeuriteGUI: Node data not a structure. No node information',toc,'s')
+                    return
+                end
+
                 nType=highlightedNode.data.nodeType;
                 ind=strmatch(nType,obj.hNodeType.String,'Exact');
                 if isempty(ind)
-                     masivDebugTimingInfo(2, sprintf('FAILED TO FIND NODE TYPE "%s"',nType),toc,'s')
+                    masivDebugTimingInfo(2, sprintf('FAILED TO FIND NODE TYPE "%s"',nType),toc,'s')
                 else
                     set(obj.hNodeType,'Value', ind); 
                 end
@@ -1326,6 +1332,7 @@ classdef neuriteTracer<masivPlugin
             obj.extensionNode(obj.selectedTreeIdx)=obj.currentLeaf; %highlight the leaf
             pos=obj.goToNode(obj.currentLeaf); %go to the leaf
 
+
             fprintf('Gone to leaf %d/%d at x=%d, y=%d, z=%d\n',f,length(leaves),pos)
             
             %Distance to the nearest parent node
@@ -1368,7 +1375,6 @@ classdef neuriteTracer<masivPlugin
             %move the highlight
             obj.extensionNode(obj.selectedTreeIdx)=parentNode; %highlight the leaf
             pos=obj.goToNode(parentNode); %go to the leaf
-
         end
 
         function goToChildNode(obj) 
