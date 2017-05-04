@@ -82,7 +82,9 @@ You can change the parent of a node in the event of a mistake during tacing
 
 
 ### Dependencies
-neuriteTracer requires [matlab-tree](https://github.com/raacampbell/matlab-tree.git). 
+neuriteTracer requires:
+* [matlab-tree](https://github.com/raacampbell/matlab-tree.git). 
+* [MaSIV](https://github.com/alexanderbrown/masiv)
 
 ### FAQ
 Q: After installing I get an error indicating that a neuriteTracer preference can not be found. 
